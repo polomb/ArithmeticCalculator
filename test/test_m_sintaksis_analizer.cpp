@@ -4,5 +4,9 @@
 
 TEST(SintaksisAnalizerTest, Default)
 {
-    ADD_FAILURE();
+    std::vector<Token*> tokens;
+    //tokens.push_back()
+    for (Token* token : tokens)
+        delete token;
+    //ADD_FAILURE();
 }

@@ -4,77 +4,111 @@
 #include <vector>
 #include <stdexcept>
 #include <cctype> //For isdigit and isalpha
+#include <stack>
 
 #include "token.h"
 #include "t_number.h"
 #include "t_operation.h"
 #include "t_peremennaya.h"
 #include "t_skobki.h"
-#include "t_eof.h"
 
 SintaksisAnalizer::SintaksisAnalizer() {}
-SintaksisAnalizer::~SintaksisAnalizer() {}
 
-bool SintaksisAnalizer::isCorrect(const std::vector<Token*>& tokens)
+bool SintaksisAnalizer::isCorrect(const std::vector<std::unique_ptr<Token>>& tokens)
 {
-    int bracketBalance = 0;
-
-    for (size_t i = 1; i < tokens.size(); i++) // i от 1 -> prev всегда есть
+    if (tokens.size() == 1)
     {
-        TokenType prev = tokens[i - 1]->getType();
-        TokenType cur = tokens[i]->getType();
-        //Нужно обдумать все возможные операции (-_-)
-        if (cur == TokenType::OPERATION && prev == TokenType::OPERATION) // -- or ++ or +- or ...
+        TokenType cur = tokens[0]->getType();
+        if(cur == TokenType::NUMBER || cur == TokenType::PEREMENNAYA) {}
+        else
         {
-            throw std::runtime_error("Two operators in a row");
+            throw std::runtime_error("One token can be only number or peremennaya");
         }
-        if (cur == TokenType::SKOBKI && prev == TokenType::SKOBKI) // () or )(
-        {
-            TSkobki* bracket1 = dynamic_cast<TSkobki*>(tokens[i - 1]);
-            TSkobki* bracket2 = dynamic_cast<TSkobki*>(tokens[i]);
-            if (bracket1->isOpenSkobka() && !bracket1->isOpenSkobka())
-            {
-                throw std::runtime_error("Skobki with no number: ()");
-            }
-            if (!bracket1->isOpenSkobka() && bracket1->isOpenSkobka())
-            {
-                throw std::runtime_error("Skobki with no operation: )(");
-            }
-        }
-        if (cur == TokenType::SKOBKI && prev == TokenType::NUMBER) // num(
-        {
-            TSkobki* bracket = dynamic_cast<TSkobki*>(tokens[i]);
-            if (bracket->isOpenSkobka())
-            {
-                throw std::runtime_error("Number before opening bracket: num(");
-            }
-        }
-        if (cur == TokenType::NUMBER && prev == TokenType::SKOBKI) // )num
-        {
-            TSkobki* bracket = dynamic_cast<TSkobki*>(tokens[i - 1]);
-            if (!bracket->isOpenSkobka())
-            {
-                throw std::runtime_error("Number after closing bracket: )num");
-            }
-        }
-
     }
-
-    if (bracketBalance != 0)
+    else
     {
-        throw std::runtime_error("Unbalanced brackets");
-    }
+        for (size_t i = 1; i < tokens.size(); i++) // i от 1 -> prev всегда есть
+        {
+            TokenType prev = tokens[i - 1]->getType();
+            TokenType cur = tokens[i]->getType();
+            if (prev == TokenType::NUMBER) //NUM: OPER, )
+            {
+                if (cur == TokenType::OPERATION || cur == TokenType::CLOSED_SKOBKA)
+                {
 
+                }
+                else
+                    throw std::runtime_error("Sintaksis_NUMBER");
+            }
+            else if (prev == TokenType::OPERATION) //OPER: NUM, PEREM, (, ), ONE_ARG_OP
+            {
+                if (cur == TokenType::NUMBER || cur == TokenType::PEREMENNAYA\
+                    || cur == TokenType::OPEN_SKOBKA || cur == TokenType::ONE_ARG_OPER)
+                {
+
+                }
+                else
+                    throw std::runtime_error("Sintaksis_OPERATION");
+            }
+            else if (prev == TokenType::ONE_ARG_OPER)//ONE_ARG_OP: NUM, PEREM, (, 
+            {
+                if (cur == TokenType::NUMBER || cur == TokenType::PEREMENNAYA\
+                    || cur == TokenType::OPEN_SKOBKA || cur == TokenType::ONE_ARG_OPER)
+                {
+
+                }
+                else
+                    throw std::runtime_error("Sintaksis_ONE_ARG_OPER");
+            }
+            else if (prev == TokenType::PEREMENNAYA) //PEREM: OPER, )
+            {
+                if (cur == TokenType::OPERATION || cur == TokenType::CLOSED_SKOBKA)
+                {
+
+                }
+                else
+                    throw std::runtime_error("Sintaksis_PEREMENNAYA");
+            }
+            else if (prev == TokenType::OPEN_SKOBKA) //(: NUM, PEREM, ONE_ARG_OP, (
+            {
+                if (cur == TokenType::NUMBER || cur == TokenType::PEREMENNAYA\
+                    || cur == TokenType::ONE_ARG_OPER || cur == TokenType::OPEN_SKOBKA)
+                {
+
+                }
+                else
+                    throw std::runtime_error("Sintaksis_OPEN_SKOBKA");
+            }
+            else if (prev == TokenType::CLOSED_SKOBKA)//): OPER, )
+            {
+                if (cur == TokenType::OPERATION || cur == TokenType::CLOSED_SKOBKA)
+                {
+
+                }
+                else
+                    throw std::runtime_error("Sintaksis_CLOSED_SKOBKA");
+            }
+        }
+    }
+    //
+    //SKOBKI at right possitions
+    std::stack<TokenType> stack;
+
+    for (const auto& token : tokens)
+    {
+        if (token->getType() == TokenType::OPEN_SKOBKA)
+        {
+            stack.push(TokenType::OPEN_SKOBKA);
+        }
+        else if (token->getType() == TokenType::CLOSED_SKOBKA)
+        {
+            if (stack.empty() || stack.top() != TokenType::OPEN_SKOBKA)
+            {
+                throw std::runtime_error("Sintaksis_SKOBKI_NESOGLASOVANNI");
+            }
+            stack.pop();
+        }
+    }
     return true;
 }
-
-//Не забыть, делаю вот это:
-//class SintaksisAnalizer
-//{
-//public:
-//    SintaksisAnalizer();
-//    ~SintaksisAnalizer();
-//
-//    bool isCorrect(const std::vector<Token*>& tokens);
-//};
 

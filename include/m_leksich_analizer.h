@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "token.h"
 
@@ -10,18 +11,16 @@ class LeksichAnalizer
 {
     std::string input;
     size_t position;
-    int line, column;
     //
     void skipWhiteSpace();
-    Token* parseNumber();
-    Token* parsePeremennaya();
+    std::unique_ptr<Token> parseNumber();
+    std::unique_ptr<Token> parsePeremOrOneArgOper();
     char getCurrentChar() const;
     void goNextPos();
 public:
     LeksichAnalizer(const std::string& inputStr);
-    ~LeksichAnalizer();
 
-    std::vector<Token*> tokenize();
+    std::vector<std::unique_ptr<Token>> tokenize();
 };
 
 #endif

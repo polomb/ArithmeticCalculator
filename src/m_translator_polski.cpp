@@ -11,210 +11,208 @@
 #include "t_operation.h"
 #include "t_peremennaya.h"
 #include "t_skobki.h"
-#include "t_eof.h"
 
 TranslatorPolski::TranslatorPolski() {}
-TranslatorPolski::~TranslatorPolski() {}
 
 bool TranslatorPolski::shouldPopOperator(const Token* oper1, const Token* oper2) const
 {
-    if (oper1->getType() != TokenType::OPERATION || oper2->getType() != TokenType::OPERATION)
-    {
+    if ((oper1->getType() != TokenType::OPERATION && oper1->getType() != TokenType::ONE_ARG_OPER) ||
+        (oper2->getType() != TokenType::OPERATION && oper2->getType() != TokenType::ONE_ARG_OPER))
         return false;
-    }
 
-    const TOperation* operation1 = dynamic_cast<const TOperation*>(oper1);
-    const TOperation* operation2 = dynamic_cast<const TOperation*>(oper2);
+    const TOperation* op1 = dynamic_cast<const TOperation*>(oper1);
+    const TOperation* op2 = dynamic_cast<const TOperation*>(oper2);
 
-    int posledovatelnost1 = operation1->getPosledov();
-    int posledovatelnost2 = operation2->getPosledov();
+    int p1 = op1->getPosledov();
+    int p2 = op2->getPosledov();
 
-    if (posledovatelnost1 > posledovatelnost2)
-    {
+    bool op1Unary = (oper1->getType() == TokenType::ONE_ARG_OPER);
+    bool op2Unary = (oper2->getType() == TokenType::ONE_ARG_OPER);
+
+    if (!op1Unary && op2Unary)
+        return false;
+
+    if (op1Unary && !op2Unary)
         return true;
-    }
-    else if (posledovatelnost1 == posledovatelnost2)
-    {
-        return operation1->getOperation() != "^";
-    }
+
+    if (p1 < p2)
+        return true;
+
+    if (p1 == p2 && op2->isLeftAssociative())
+        return true;
 
     return false;
 }
-
-void TranslatorPolski::clearTokens(std::vector<Token*>& tokens)
+std::vector<std::unique_ptr<Token>> TranslatorPolski::toPolishNotation(const std::vector<std::unique_ptr<Token>>& tokens)
 {
-    for (Token* token : tokens)
+    std::vector<std::unique_ptr<Token>> output;
+    std::stack<std::unique_ptr<Token>> operatorsStack;
+
+    for (const auto& token : tokens)
     {
-        delete token;
+        TokenType type = token->getType();
+
+        if (type == TokenType::NUMBER || type == TokenType::PEREMENNAYA)
+        {
+            if (type == TokenType::NUMBER)
+            {
+                const TNumber* num = dynamic_cast<const TNumber*>(token.get());
+                output.push_back(std::make_unique<TNumber>(num->getNumberValue()));
+            }
+            else if (type == TokenType::PEREMENNAYA)
+            {
+                const TPeremennaya* var = dynamic_cast<const TPeremennaya*>(token.get());
+                output.push_back(std::make_unique<TPeremennaya>(var->getPeremennaya()));
+            }
+        }
+        else if (type == TokenType::OPERATION || type == TokenType::ONE_ARG_OPER)
+        {
+            const TOperation* op = dynamic_cast<const TOperation*>(token.get());
+
+            while (!operatorsStack.empty() && \
+                operatorsStack.top()->getType() != TokenType::OPEN_SKOBKA && \
+                shouldPopOperator(operatorsStack.top().get(), token.get()))
+            {
+                TokenType topType = operatorsStack.top()->getType();
+                if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
+                {
+                    const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                    output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
+                }
+                operatorsStack.pop();
+            }
+            operatorsStack.push(std::make_unique<TOperation>(op->getOperation(), op->getArgument()));
+        }
+        else if (type == TokenType::OPEN_SKOBKA)
+        {
+            const TSkobki* skobka = dynamic_cast<const TSkobki*>(token.get());
+            operatorsStack.push(std::make_unique<TSkobki>(skobka->getSkobka()));
+        }
+        else if (type == TokenType::CLOSED_SKOBKA)
+        {
+            while (!operatorsStack.empty() && operatorsStack.top()->getType() != TokenType::OPEN_SKOBKA)
+            {
+                TokenType topType = operatorsStack.top()->getType();
+                if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
+                {
+                    const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                    output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
+                }
+                operatorsStack.pop();
+            }
+            if (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::OPEN_SKOBKA)
+            {
+                operatorsStack.pop();
+            }
+            if (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::ONE_ARG_OPER)
+            {
+                const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
+                operatorsStack.pop();
+            }
+        }
     }
-    tokens.clear();
+
+    while (!operatorsStack.empty())
+    {
+        TokenType topType = operatorsStack.top()->getType();
+        if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
+        {
+            const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+            output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
+        }
+        operatorsStack.pop();
+    }
+
+    return output;
 }
 
-std::vector<Token*> TranslatorPolski::toPolishNotation(const std::vector<Token*>& tokens)
+double TranslatorPolski::calculate(const std::vector<std::unique_ptr<Token>>& polishTokens)
 {
-    std::vector<Token*> output;
-    std::stack<Token*> operStack;
+    std::stack<double> values;
 
-    for (const Token* token : tokens)
+    for (const auto& token : polishTokens)
     {
         TokenType type = token->getType();
 
         if (type == TokenType::NUMBER)
         {
-            const TNumber* number = dynamic_cast<const TNumber*>(token);
-            output.push_back(new TNumber(number->getNumberValue()));
-        }
-        else if (type == TokenType::PEREMENNAYA)
-        {
-            const TPeremennaya* variable = dynamic_cast<const TPeremennaya*>(token);
-            output.push_back(new TPeremennaya(variable->getPeremennaya()));
+            const TNumber* num = dynamic_cast<const TNumber*>(token.get());
+            values.push(num->getNumberValue());
         }
         else if (type == TokenType::OPERATION)
         {
-            const TOperation* operation = dynamic_cast<const TOperation*>(token);
-            TOperation* operCopy = new TOperation(operation->getOperation());
+            const TOperation* op = dynamic_cast<const TOperation*>(token.get());
 
-            while (!operStack.empty() && operStack.top()->getType() == TokenType::OPERATION\
-                && shouldPopOperator(operStack.top(), operCopy))
+            if (op->getArgument() == Arguments::TWO)
             {
+                if (values.size() < 2)
+                    throw std::runtime_error("TRANSLATOR_OPERATION");
 
-                TOperation* operTop = dynamic_cast<TOperation*>(operStack.top());
-                output.push_back(new TOperation(operTop->getOperation()));
-                delete operStack.top();
-                operStack.pop();
-            }
-            operStack.push(operCopy);
-        }
-        else if (type == TokenType::SKOBKI)
-        {
-            const TSkobki* bracket = dynamic_cast<const TSkobki*>(token);
-            if (bracket->isOpenSkobka())
-            {
-                operStack.push(new TSkobki('('));
-            }
-            else
-            {
-                while (!operStack.empty() && operStack.top()->getType() != TokenType::SKOBKI)
+                double b = values.top();
+                values.pop();
+                double a = values.top();
+                values.pop();
+                double result = 0.0;
+
+                std::string operation = op->getOperation();
+
+                if (operation == "+")
+                    result = a + b;
+                else if (operation == "-")
+                    result = a - b;
+                else if (operation == "*")
+                    result = a * b;
+                else if (operation == "/")
                 {
-
-                    TOperation* topOp = dynamic_cast<TOperation*>(operStack.top());
-                    output.push_back(new TOperation(topOp->getOperation()));
-                    delete operStack.top();
-                    operStack.pop();
+                    if (b == 0.0)
+                        throw std::runtime_error("TRANSLATOR_Divided by 0");
+                    result = a / b;
                 }
+                else if (operation == "^")
+                    result = std::pow(a, b);
+                else
+                    throw std::runtime_error("TRANSLATOR(BIG_ERROR): " + operation);
 
-                if (operStack.empty())
-                {
-                    clearTokens(output);
-                    throw std::runtime_error("Mismatched brackets");
-                }
-
-                delete operStack.top();
-                operStack.pop();
+                values.push(result);
             }
         }
-    }
-    while (!operStack.empty())
-    {
-        Token* topToken = operStack.top();
-        if (topToken->getType() == TokenType::SKOBKI)
+        else if (type == TokenType::ONE_ARG_OPER)
         {
-            clearTokens(output);
-            throw std::runtime_error("Mismatched brackets");
-        }
+            const TOperation* op = dynamic_cast<const TOperation*>(token.get());
 
-        TOperation* operTop = dynamic_cast<TOperation*>(topToken);
-        output.push_back(new TOperation(operTop->getOperation()));
-        delete operStack.top();
-        operStack.pop();
-    }
-    output.push_back(new TEndOfFile());
+            if (values.empty())
+                throw std::runtime_error("TRANSLATOR(BIG_ERROR)_ONE_ARG");
 
-    return output;
-}
-
-double TranslatorPolski::calculate(const std::vector<Token*>& polishTokens) {
-    std::stack<double> stack;
-
-    for (Token* token : polishTokens)
-    {
-        if (token->getType() == TokenType::NUMBER)
-        {
-            TNumber* number = dynamic_cast<TNumber*>(token);
-            stack.push(number->getNumberValue());
-        }
-        else if (token->getType() == TokenType::OPERATION)
-        {
-            if (stack.size() < 2)
-            {
-                throw std::runtime_error("Not enough operands for operation");
-            }
-
-            double right = stack.top();
-            stack.pop();
-            double left = stack.top();
-            stack.pop();
-
-            TOperation* operation = dynamic_cast<TOperation*>(token);
-            std::string op = operation->getOperation();
+            double a = values.top();
+            values.pop();
             double result = 0.0;
 
-            if (op == "+")
-            {
-                result = left + right;
-            }
-            else if (op == "-")
-            {
-                result = left - right;
-            }
-            else if (op == "*")
-            {
-                result = left * right;
-            }
-            else if (op == "/")
-            {
-                if (right == 0)
-                {
-                    throw std::runtime_error("Division by zero");
-                }
-                result = left / right;
-            }
-            else if (op == "^")
-            {
-                result = std::pow(left, right);
-            }
-            else
-            {
-                throw std::runtime_error("Unknown operation: " + op);
-            }
+            std::string operation = op->getOperation();
 
-            stack.push(result);
+            if (operation == "-")
+                result = -a;
+            else if (operation == "exp")
+                result = std::exp(a);
+            else if (operation == "ln")
+            {
+                if (a <= 0.0)
+                    throw std::runtime_error("TRANSLATOR_Ln(a<0)");
+                result = std::log(a);
+            }
+            values.push(result);
         }
-        else if (token->getType() == TokenType::PEREMENNAYA)
+        else if (type == TokenType::PEREMENNAYA)
         {
-            throw std::runtime_error("Variables are not supported in calculation");
+            const TPeremennaya* var = dynamic_cast<const TPeremennaya*>(token.get());
+            throw std::runtime_error("TRANSLATOR_Perem");
         }
     }
 
-    if (stack.size() != 1)
-    {
-        throw std::runtime_error("Invalid expression");
-    }
+    if (values.size() != 1)
+        throw std::runtime_error("TRANSLATOR_Stack is not empty " +
+            std::to_string(values.size()) + " значений");
 
-    return stack.top();
+    return values.top();
 }
-
-//Не забыть, делаю вот это:
-//class TranslatorPolski
-//{
-//    bool shouldPopOperator(const Token* oper1, const Token* oper2) const;
-//    void clearTokens(std::vector<Token*>& tokens);
-//public:
-//    TranslatorPolski();
-//    ~TranslatorPolski();
-//
-//    std::vector<Token*> toPolishNotation(const std::vector<Token*>& tokens);
-//
-//    double calculate(const std::vector<Token*>& polishTokens);
-//};
 

@@ -3,35 +3,22 @@
 
 Calculator::Calculator()
 {
-    leksich = new LeksichAnalizer("");
-    sintaksis = new SintaksisAnalizer();
-    translator = new TranslatorPolski();
-}
-
-Calculator::~Calculator()
-{
-    delete leksich;
-    delete sintaksis;
-    delete translator;
+    sintaksis = std::make_unique<SintaksisAnalizer>();
+    translator = std::make_unique<TranslatorPolski>();
 }
 
 double Calculator::ArithmeticCalculator(const std::string& expression)
 {
     //Leksika
-    delete leksich;
-    leksich = new LeksichAnalizer(expression);
-    std::vector<Token*> tokens = leksich->tokenize();
+    leksich = std::make_unique<LeksichAnalizer>(expression);
+    std::vector<std::unique_ptr<Token>> tokens = leksich->tokenize();
     //Sintaksis
     sintaksis->isCorrect(tokens);
     //PolskayaZapis
-    std::vector<Token*> polishTokens = translator->toPolishNotation(tokens);
+    std::vector<std::unique_ptr<Token>> polishTokens = translator->toPolishNotation(tokens);
     //Calculation
     double result = translator->calculate(polishTokens);
-    //ClearMemory
-    for (Token* token : tokens)
-        delete token;
-    for (Token* token : polishTokens)
-        delete token;
+
     return result;
 }
 

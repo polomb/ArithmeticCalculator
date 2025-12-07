@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "token.h"
 
@@ -10,9 +11,8 @@ class SintaksisAnalizer
 {
 public:
     SintaksisAnalizer();
-    ~SintaksisAnalizer();
 
-    bool isCorrect(const std::vector<Token*>& tokens);
+    bool isCorrect(const std::vector<std::unique_ptr<Token>>& tokens);
 };
 
 #endif

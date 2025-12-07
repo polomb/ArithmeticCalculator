@@ -2,19 +2,19 @@
 #define __M_TRANSLATOR_POLSKI__
 
 #include <vector>
+#include <memory>
+
 #include "token.h"
 
 class TranslatorPolski
 {
     bool shouldPopOperator(const Token* oper1, const Token* oper2) const;
-    void clearTokens(std::vector<Token*>& tokens);
 public:
     TranslatorPolski();
-    ~TranslatorPolski();
 
-    std::vector<Token*> toPolishNotation(const std::vector<Token*>& tokens);
+    std::vector<std::unique_ptr<Token>> toPolishNotation(const std::vector<std::unique_ptr<Token>>& tokens);
 
-    double calculate(const std::vector<Token*>& polishTokens);
+    double calculate(const std::vector<std::unique_ptr<Token>>& polishTokens);
 };
 
 #endif

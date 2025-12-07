@@ -1,15 +1,18 @@
 ﻿#include "t_skobki.h"
 
-TSkobki::TSkobki(char skobka)
+TSkobki::TSkobki(char skoba) : skobka(skoba)
 {
-	if (skobka == '(')
+	if (skoba == '(')
 		open = true;
 	else 
 		open = false;
 }
 TokenType TSkobki::getType() const
 {
-	return TokenType::SKOBKI;
+	if(open)
+		return TokenType::OPEN_SKOBKA;
+	else
+		return TokenType::CLOSED_SKOBKA;
 }
 char TSkobki::getSkobka() const
 {

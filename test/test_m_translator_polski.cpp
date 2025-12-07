@@ -4,5 +4,6 @@
 
 TEST(TranslatorPolskiTest, Default)
 {
+
     ADD_FAILURE();
 }

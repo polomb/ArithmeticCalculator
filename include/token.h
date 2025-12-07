@@ -7,12 +7,10 @@ enum class TokenType
 {
     NUMBER,
     OPERATION,
+    ONE_ARG_OPER,
     PEREMENNAYA,
-    SKOBKI,
-    L_VALUE,
-    R_VALUE,
-    EOF_TOKEN,
-    ERROR
+    OPEN_SKOBKA,
+    CLOSED_SKOBKA
 };
 
 class Token

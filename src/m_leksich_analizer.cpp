@@ -10,32 +10,15 @@
 #include "t_operation.h"
 #include "t_peremennaya.h"
 #include "t_skobki.h"
-#include "t_eof.h"
 
 LeksichAnalizer::LeksichAnalizer(const std::string& inputStr)\
-    : input(inputStr), position(0), line(1), column(1) { }
-LeksichAnalizer::~LeksichAnalizer()
-{
-    //???
-}
+    : input(inputStr), position(0) {}
 //
 void LeksichAnalizer::goNextPos()
 {
 	if (position >= input.length())
 		return;
 
-	//         Column1 Column2 Column3
-	//Line1:     'a'     'b'     '\n'
-	//Line2:     'c'     'd'     '\n'
-	if (input[position] == '\n')
-	{
-		line++;
-		column = 1;
-	}
-	else
-	{
-		column++;
-	}
 	position++;
 }
 //
@@ -49,14 +32,10 @@ void LeksichAnalizer::skipWhiteSpace()
 //
 char LeksichAnalizer::getCurrentChar() const
 {
-	if (position >= input.length())
-	{
-		return '\0';  //END_OF_LINE
-	}
 	return input[position];
 }
 //
-Token* LeksichAnalizer::parseNumber()
+std::unique_ptr<Token> LeksichAnalizer::parseNumber()
 {
 	size_t start = position;
 	bool dot = false;
@@ -88,7 +67,7 @@ Token* LeksichAnalizer::parseNumber()
         {
             value = value * 10 + (c - '0');
         }
-        return new TNumber(value);
+        return std::make_unique<TNumber>(value);
     }
     else
     {
@@ -116,36 +95,55 @@ Token* LeksichAnalizer::parseNumber()
         }
 
         double value = integer + fraction;
-        return new TNumber(value);
+        return std::make_unique<TNumber>(value);
     }
 }
 //
-Token* LeksichAnalizer::parsePeremennaya()
+std::unique_ptr<Token> LeksichAnalizer::parsePeremOrOneArgOper()
 {
     size_t start = position;
+    bool isPeremennaya = true;
 
-    if (position < input.length() &&\
-        (std::isalpha(input[position])))
+    if (position < input.length() && std::isalpha(input[position]))
     {
         goNextPos();
 
         while (position < input.length() && (std::isalpha(input[position]) ||\
-                std::isdigit(input[position]) || input[position] == '_'))
+                std::isdigit(input[position]) || input[position] == '_' || input[position] == '('))
         {
-            goNextPos();
+            if (input[position] == '(')
+            {
+                isPeremennaya = false;
+                break;
+            }
+            else
+            {
+                goNextPos();
+            }
         }
     }
-
     std::string identifier = input.substr(start, position - start);
-    return new TPeremennaya(identifier);
+    if (isPeremennaya)
+    {
+        return std::make_unique<TPeremennaya>(identifier);
+    }
+    else
+    {
+        if (identifier == "exp" || identifier == "ln")
+        {
+            return std::make_unique<TOperation>(identifier, Arguments::ONE);
+        }
+        else
+        {
+            return std::make_unique<TPeremennaya>(identifier);
+        }
+    }
 }
 //
-std::vector<Token*> LeksichAnalizer::tokenize()
+std::vector<std::unique_ptr<Token>> LeksichAnalizer::tokenize()
 {
-    std::vector<Token*> tokens;
+    std::vector<std::unique_ptr<Token>> tokens;
     position = 0;
-    line = 1;
-    column = 1;
 
     while (position < input.length())
     {
@@ -155,59 +153,70 @@ std::vector<Token*> LeksichAnalizer::tokenize()
             break;
         //
         char current = getCurrentChar();
-        Token* token = nullptr;
+        std::unique_ptr<Token> token = nullptr;
         //
-        if (std::isdigit(current))
+        if (std::isdigit(current) || current == '.')
         {
             token = parseNumber();
         }
-        else if (std::isalpha(current) || current == '_')
+        else if (std::isalpha(current))
         {
-            token = parsePeremennaya();
+            token = parsePeremOrOneArgOper();
         }
         else if (current == '+' || current == '-' || current == '*' ||
             current == '/' || current == '^')
         {
-            token = new TOperation(std::string(1, current));
+            token = std::make_unique<TOperation>(std::string(1, current), Arguments::TWO);
             goNextPos();
         }
         else if (current == '(' || current == ')')
         {
-            token = new TSkobki(current);
+            token = std::make_unique<TSkobki>(current);
             goNextPos();
         }
         else
         {
-            throw std::runtime_error("Unknown character '" + std::string(1, current)\
-                + "' at line " + std::to_string(line) + ", column " + std::to_string(column));
+            throw std::runtime_error("LEKSICH_Unknown character '" + std::string(1, current)\
+                + "' at position " + std::to_string(position+1));
         }
         //
         if (token)
         {
-            tokens.push_back(token);
+            tokens.push_back(std::move(token));
+        }
+    }
+    if (tokens.size() == 2)
+    {
+        TokenType fir = tokens[0]->getType();
+        TokenType sec = tokens[1]->getType();
+        if (fir == TokenType::OPERATION && (sec == TokenType::NUMBER || sec == TokenType::PEREMENNAYA))
+        {
+            TOperation* operation = dynamic_cast<TOperation*>(tokens[0].get());
+            if (operation->getOperation() == "-")
+            {
+                operation->setArgument(Arguments::ONE);
+            }
+        }
+    }
+    else
+    {
+        for (size_t i = 2; i < tokens.size(); i++)
+        {
+            TokenType fir = tokens[i-2]->getType();
+            TokenType sec = tokens[i-1]->getType();
+            TokenType thi = tokens[i]->getType();
+            if ((thi == TokenType::NUMBER || thi == TokenType::PEREMENNAYA ||thi == TokenType::OPEN_SKOBKA || thi == TokenType::ONE_ARG_OPER)\
+                && (sec == TokenType::OPERATION) && \
+                (fir != TokenType::NUMBER && fir != TokenType::PEREMENNAYA && fir != TokenType::CLOSED_SKOBKA))
+            {
+                if (dynamic_cast<TOperation*>(tokens[i - 1].get())->getOperation() == "-")
+                {
+                    dynamic_cast<TOperation*>(tokens[i - 1].get())->setArgument(Arguments::ONE);
+                }
+            }
         }
     }
 
-    tokens.push_back(new TEndOfFile());
     return tokens;
 }
-//
-//Не забыть, делаю вот это:
-//class LeksichAnalizer
-//{
-//    std::string input;
-//    size_t position;
-//    int line, column;
-//    //
-//    void skipWhiteSpace();
-//    Token* parseNumber();
-//    Token* parsePeremennaya();
-//    char getCurrentChar() const;
-//    void goNextPos();
-//public:
-//    LeksichAnalizer(const std::string& inputStr);
-//    ~LeksichAnalizer();
-//
-//    std::vector<Token*> tokenize();
-//};
 
