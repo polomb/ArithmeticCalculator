@@ -174,6 +174,11 @@ std::vector<std::unique_ptr<Token>> LeksichAnalizer::tokenize()
             token = std::make_unique<TSkobki>(current);
             goNextPos();
         }
+        else if(current == '=')
+        {
+            token = std::make_unique<TEquation>(current);
+            goNextPos();
+        }
         else
         {
             throw std::runtime_error("LEKSICH_Unknown character '" + std::string(1, current)\
@@ -200,6 +205,16 @@ std::vector<std::unique_ptr<Token>> LeksichAnalizer::tokenize()
     }
     else
     {
+        TokenType fir = tokens[0]->getType();
+        TokenType sec = tokens[1]->getType();
+        if (fir == TokenType::OPERATION && (sec == TokenType::NUMBER || sec == TokenType::PEREMENNAYA))
+        {
+            TOperation* operation = dynamic_cast<TOperation*>(tokens[0].get());
+            if (operation->getOperation() == "-")
+            {
+                operation->setArgument(Arguments::ONE);
+            }
+        }
         for (size_t i = 2; i < tokens.size(); i++)
         {
             TokenType fir = tokens[i-2]->getType();

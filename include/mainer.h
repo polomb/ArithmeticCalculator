@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include <unordered_map>
 
 #include "m_leksich_analizer.h"
 #include "m_sintaksis_analizer.h"
@@ -17,7 +18,7 @@ class Calculator
 public:
     Calculator();   
 
-    double ArithmeticCalculator(const std::string& expression);
+    double ArithmeticCalculator(const std::string& expression, std::unordered_map<std::string, double>& peremF);
 };
 
 #endif

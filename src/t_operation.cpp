@@ -46,7 +46,8 @@ Arguments TOperation::getArgument() const
 void TOperation::setArgument(Arguments argument)
 {
     argum = argument;
-    if (argum == Arguments::ONE) {
+    if (argum == Arguments::ONE)
+    {
         if (oper == "-")
             posledov = 5;
         else if (oper == "ln" || oper == "exp")
@@ -63,5 +64,20 @@ void TOperation::setArgument(Arguments argument)
 bool TOperation::isLeftAssociative() const
 {
     return oper != "^";
+}
+//
+//
+//
+TEquation::TEquation(char eq) : equal(eq)
+{
+    
+}
+TokenType TEquation::getType() const
+{
+    return TokenType::EQUATION;
+}
+char TEquation::getEquationValue() const
+{
+    return equal;
 }
 

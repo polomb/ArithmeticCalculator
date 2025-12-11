@@ -10,7 +10,8 @@ enum class TokenType
     ONE_ARG_OPER,
     PEREMENNAYA,
     OPEN_SKOBKA,
-    CLOSED_SKOBKA
+    CLOSED_SKOBKA,
+    EQUATION
 };
 
 class Token

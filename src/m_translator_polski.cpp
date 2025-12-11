@@ -33,9 +33,9 @@ bool TranslatorPolski::shouldPopOperator(const Token* oper1, const Token* oper2)
         return false;
 
     if (op1Unary && !op2Unary)
-        return true;
+        return false;
 
-    if (p1 < p2)
+    if (p1 > p2)
         return true;
 
     if (p1 == p2 && op2->isLeftAssociative())
@@ -48,8 +48,21 @@ std::vector<std::unique_ptr<Token>> TranslatorPolski::toPolishNotation(const std
     std::vector<std::unique_ptr<Token>> output;
     std::stack<std::unique_ptr<Token>> operatorsStack;
 
-    for (const auto& token : tokens)
+    auto start = tokens.begin();
+    if (tokens.size() >= 2)
     {
+        if (tokens[1]->getType() == TokenType::EQUATION)
+        {
+            start = tokens.begin() + 2;
+            output.push_back(std::make_unique<TPeremennaya>\
+                (dynamic_cast<const TPeremennaya*>(tokens[0].get())->getPeremennaya()));
+            output.push_back(std::make_unique<TEquation>\
+                (dynamic_cast<const TEquation*>(tokens[1].get())->getEquationValue()));
+        }
+    }
+    for (auto it = start; it != tokens.end(); ++it)
+    {
+        const auto& token = *it;
         TokenType type = token->getType();
 
         if (type == TokenType::NUMBER || type == TokenType::PEREMENNAYA)
@@ -59,28 +72,31 @@ std::vector<std::unique_ptr<Token>> TranslatorPolski::toPolishNotation(const std
                 const TNumber* num = dynamic_cast<const TNumber*>(token.get());
                 output.push_back(std::make_unique<TNumber>(num->getNumberValue()));
             }
-            else if (type == TokenType::PEREMENNAYA)
+            else
             {
                 const TPeremennaya* var = dynamic_cast<const TPeremennaya*>(token.get());
                 output.push_back(std::make_unique<TPeremennaya>(var->getPeremennaya()));
+            }
+            while (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::ONE_ARG_OPER)
+            {
+                const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
+                operatorsStack.pop();
             }
         }
         else if (type == TokenType::OPERATION || type == TokenType::ONE_ARG_OPER)
         {
             const TOperation* op = dynamic_cast<const TOperation*>(token.get());
-
-            while (!operatorsStack.empty() && \
-                operatorsStack.top()->getType() != TokenType::OPEN_SKOBKA && \
+            while (!operatorsStack.empty() &&
+                operatorsStack.top()->getType() != TokenType::OPEN_SKOBKA &&
+                op->getType() == TokenType::OPERATION &&
                 shouldPopOperator(operatorsStack.top().get(), token.get()))
             {
-                TokenType topType = operatorsStack.top()->getType();
-                if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
-                {
-                    const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
-                    output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
-                }
+                const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
                 operatorsStack.pop();
             }
+
             operatorsStack.push(std::make_unique<TOperation>(op->getOperation(), op->getArgument()));
         }
         else if (type == TokenType::OPEN_SKOBKA)
@@ -92,19 +108,14 @@ std::vector<std::unique_ptr<Token>> TranslatorPolski::toPolishNotation(const std
         {
             while (!operatorsStack.empty() && operatorsStack.top()->getType() != TokenType::OPEN_SKOBKA)
             {
-                TokenType topType = operatorsStack.top()->getType();
-                if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
-                {
-                    const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+                if (topOp->getType() == TokenType::OPERATION || topOp->getType() == TokenType::ONE_ARG_OPER)
                     output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
-                }
                 operatorsStack.pop();
             }
             if (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::OPEN_SKOBKA)
-            {
                 operatorsStack.pop();
-            }
-            if (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::ONE_ARG_OPER)
+            while (!operatorsStack.empty() && operatorsStack.top()->getType() == TokenType::ONE_ARG_OPER)
             {
                 const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
                 output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
@@ -112,27 +123,35 @@ std::vector<std::unique_ptr<Token>> TranslatorPolski::toPolishNotation(const std
             }
         }
     }
-
     while (!operatorsStack.empty())
     {
-        TokenType topType = operatorsStack.top()->getType();
-        if (topType == TokenType::OPERATION || topType == TokenType::ONE_ARG_OPER)
-        {
-            const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+        const TOperation* topOp = dynamic_cast<const TOperation*>(operatorsStack.top().get());
+        if (topOp->getType() == TokenType::OPERATION || topOp->getType() == TokenType::ONE_ARG_OPER)
             output.push_back(std::make_unique<TOperation>(topOp->getOperation(), topOp->getArgument()));
-        }
         operatorsStack.pop();
     }
 
     return output;
 }
 
-double TranslatorPolski::calculate(const std::vector<std::unique_ptr<Token>>& polishTokens)
+double TranslatorPolski::calculate(const std::vector<std::unique_ptr<Token>>& polishTokens, std::unordered_map<std::string, double>& perem)
 {
     std::stack<double> values;
 
-    for (const auto& token : polishTokens)
+    bool isThereEquation = false;
+    auto start = polishTokens.begin();
+    if (polishTokens.size() >= 2)
     {
+        if (polishTokens[1]->getType() == TokenType::EQUATION)
+        {
+            isThereEquation = true;
+            start = polishTokens.begin() + 2;
+        }
+    }
+
+    for (auto it = start; it != polishTokens.end(); ++it)
+    {
+        const auto& token = *it;
         TokenType type = token->getType();
 
         if (type == TokenType::NUMBER)
@@ -205,13 +224,23 @@ double TranslatorPolski::calculate(const std::vector<std::unique_ptr<Token>>& po
         else if (type == TokenType::PEREMENNAYA)
         {
             const TPeremennaya* var = dynamic_cast<const TPeremennaya*>(token.get());
-            throw std::runtime_error("TRANSLATOR_Perem");
+            std::string name = var->getPeremennaya();
+
+            if (perem.find(name) != perem.end())
+            {
+                values.push(perem[name]);
+            }
         }
     }
 
     if (values.size() != 1)
         throw std::runtime_error("TRANSLATOR_Stack is not empty " +
             std::to_string(values.size()) + " значений");
+
+    if (isThereEquation)
+    {
+        perem[dynamic_cast<const TPeremennaya*>(polishTokens[0].get())->getPeremennaya()] = values.top();
+    }
 
     return values.top();
 }

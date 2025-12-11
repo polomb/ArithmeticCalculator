@@ -25,6 +25,18 @@ public:
     void setArgument(Arguments argument);
     bool isLeftAssociative() const;
 };
+//
+//
+//
+class TEquation : public Token
+{
+    char equal;
+public:
+    TEquation(char equal);
+    TokenType getType() const override;
+    char getEquationValue() const;
+};
+
 
 #endif
 
