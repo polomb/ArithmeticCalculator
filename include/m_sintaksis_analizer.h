@@ -12,7 +12,7 @@ class SintaksisAnalizer
 {
 public:
     SintaksisAnalizer();
-
+    //
     bool isCorrect(const std::vector<std::unique_ptr<Token>>& tokens, std::unordered_map<std::string, double>& perem);
 };
 

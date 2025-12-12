@@ -30,16 +30,30 @@ bool SintaksisAnalizer::isCorrect(const std::vector<std::unique_ptr<Token>>& tok
 
                 }
                 else
-                    throw std::runtime_error("There is no such perem");
+                    throw std::runtime_error("Sintaksis_There is no such perem");
             }
         }
         else
         {
-            throw std::runtime_error("One token can be only number or peremennaya");
+            throw std::runtime_error("Sintaksis_One token can be only number or peremennaya");
         }
     }
     else
     {
+        TokenType perv = tokens[0]->getType();
+        if (perv == TokenType::NUMBER || perv == TokenType::PEREMENNAYA || \
+            perv == TokenType::ONE_ARG_OPER || perv == TokenType::OPEN_SKOBKA)
+        { }
+        else
+        {
+            throw std::runtime_error("Sintaksis_First elem should be correct");
+        }
+        TokenType last = tokens.back()->getType();
+        if (last == TokenType::OPERATION &&
+            dynamic_cast<TOperation*>(tokens.back().get())->getArgument() == Arguments::TWO)
+        {
+            throw std::runtime_error("Sintaksis_Last elem should be correct");
+        }
         for (size_t i = 1; i < tokens.size(); i++) // i от 1 -> prev always exists
         {
             TokenType prev = tokens[i - 1]->getType();
@@ -83,7 +97,7 @@ bool SintaksisAnalizer::isCorrect(const std::vector<std::unique_ptr<Token>>& tok
 
                     }
                     else
-                        throw std::runtime_error("There is no such perem");
+                        throw std::runtime_error("Sintaksis_There is no such perem");
                 }
                 //
                 if (cur == TokenType::OPERATION || cur == TokenType::CLOSED_SKOBKA || \

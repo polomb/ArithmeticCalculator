@@ -190,7 +190,11 @@ std::vector<std::unique_ptr<Token>> LeksichAnalizer::tokenize()
             tokens.push_back(std::move(token));
         }
     }
-    if (tokens.size() == 2)
+    if (tokens.size() == 1)
+    {
+
+    }
+    else if (tokens.size() == 2)
     {
         TokenType fir = tokens[0]->getType();
         TokenType sec = tokens[1]->getType();
