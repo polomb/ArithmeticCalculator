@@ -2,7 +2,14 @@
 
 #include <gtest.h>
 
-TEST(PeremennayaTest, Default)
+TEST(PeremennayaTest, DefaultConstructor)
 {
-    ADD_FAILURE();
+    TPeremennaya var("abc123");
+    EXPECT_EQ(var.getPeremennaya(), "abc123");
+}
+
+TEST(PeremennayaTest, CorrectType)
+{
+    TPeremennaya var("x");
+    EXPECT_EQ(var.getType(), TokenType::PEREMENNAYA);
 }
