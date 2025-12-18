@@ -58,6 +58,8 @@ std::unique_ptr<Token> LeksichAnalizer::parseNumber()
         }
     }
     std::string numStr = input.substr(start, position - start);
+    if(dot && numStr.size() == 1)
+        throw std::runtime_error("LEKSICH_No_number_given");
 
     if (!dot)
     {
